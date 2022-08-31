@@ -10,11 +10,11 @@ for choose_image_model in ['resnet18', 'tf_efficientnetv2_b3', 'vit_base_patch32
                data_path = data_path)
     
 # Ablation study for VICTOR[MTL], VICTOR[OCr] and VICTOR[MID]
-# OCR stands for Outfit Compatibility as regression (here noted as CPr: Compatibility Prediction as regression)
+# OCr stands for Outfit Compatibility as regression
 # MID stands for Mismatching Item Detection
 # MTL stands for multi-task-learning which combines both OCr and MID
 
-for gen in [2, 4]:
+for m in [2, 4]:
     for polyvore_version in ['disjoint', 'nondisjoint']:
         for pretraining_method in ['FLIP', 'ImageNet']:
             for choose_image_model in ['resnet18', 'mixer_b16_224', 'vit_base_patch32_224', 'tf_efficientnetv2_b3']: 
@@ -23,7 +23,7 @@ for gen in [2, 4]:
                 run_experiment(choose_gpu = 0, 
                                data_path=data_path,
                                use_MID_choices = [True, False],
-                               use_CPr_choices = [True, False], 
+                               use_OCr_choices = [True, False], 
                                w_loss_choices =  w_loss_choices,
                                save_results_to = 'results_MISFITS',
                                use_misfits = True, 
@@ -32,13 +32,13 @@ for gen in [2, 4]:
                                choose_image_model=choose_image_model,
                                choose_text_model = "CLIP_Transformer",
                                use_features = ["images"],
-                               generate_per_outfit=gen,
+                               generate_per_outfit=m,
                                EPOCHS = 20, 
                                LEARNING_RATE = 1e-4)
                 
                 
 # Training VICTOR[OCb] 
-# OCb stands for Outfit Compatibility as binary classification. (Here named CPb = Compatibility Prediction as binary classification)
+# OCb stands for Outfit Compatibility as binary classification.
 for polyvore_version in ['disjoint', 'nondisjoint']:
     for pretraining_method in ['FLIP', 'ImageNet']:
         for choose_image_model in ['resnet18', 'mixer_b16_224', 'vit_base_patch32_224', 'tf_efficientnetv2_b3']: 
@@ -46,7 +46,7 @@ for polyvore_version in ['disjoint', 'nondisjoint']:
                 run_experiment(choose_gpu = 0, 
                                data_path=data_path,
                                use_MID_choices = [False],
-                               use_CPr_choices = [False], 
+                               use_OCr_choices = [False], 
                                w_loss_choices =  [1],
                                save_results_to = 'results_MISFITS',
                                use_misfits = False, 
@@ -60,7 +60,7 @@ for polyvore_version in ['disjoint', 'nondisjoint']:
                                LEARNING_RATE = 1e-4)
                 
 # Training VICTOR[MTL] with multi-modal features (image+text)
-for gen in [2, 4]:
+for m in [2, 4]:
     for polyvore_version in ['disjoint', 'nondisjoint']:
         for pretraining_method in ['FLIP']:
             for choose_image_model in ['resnet18', 'mixer_b16_224', 'vit_base_patch32_224', 'tf_efficientnetv2_b3']: 
@@ -69,7 +69,7 @@ for gen in [2, 4]:
                 run_experiment(choose_gpu = 0, 
                                data_path=data_path,
                                use_MID_choices = [True],
-                               use_CPr_choices = [True], 
+                               use_OCr_choices = [True], 
                                w_loss_choices =  w_loss_choices,
                                save_results_to = 'results_MISFITS',
                                use_misfits = True, 
@@ -78,12 +78,12 @@ for gen in [2, 4]:
                                choose_image_model=choose_image_model,
                                choose_text_model = "CLIP_Transformer",
                                use_features = ["images", "texts"],
-                               generate_per_outfit=gen,
+                               generate_per_outfit=m,
                                EPOCHS = 20, 
                                LEARNING_RATE = 1e-4)
 
 # Training VICTOR[MTL] with text only inputs              
-for gen in [2, 4]:
+for m in [2, 4]:
     for polyvore_version in ['nondisjoint']:
         for pretraining_method in ['FLIP']:
             for choose_image_model in ['resnet18']: 
@@ -95,7 +95,7 @@ for gen in [2, 4]:
                 run_experiment(choose_gpu = 0, 
                                data_path=data_path,
                                use_MID_choices = [True],
-                               use_CPr_choices = [True], 
+                               use_OCr_choices = [True], 
                                w_loss_choices =  w_loss_choices,
                                save_results_to = 'results_MISFITS',
                                use_misfits = True, 
@@ -103,7 +103,7 @@ for gen in [2, 4]:
                                polyvore_version=polyvore_version, 
                                choose_image_model=choose_image_model,
                                choose_text_model = "CLIP_Transformer",
-                               use_features = ["images", "texts"],
-                               generate_per_outfit=gen,
+                               use_features = ["texts"],
+                               generate_per_outfit=m,
                                EPOCHS = 20, 
                                LEARNING_RATE = 1e-4)

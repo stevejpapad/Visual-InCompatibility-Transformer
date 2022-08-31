@@ -26,12 +26,12 @@ def run_experiment(choose_gpu = 0,
                    memory_fraction=1.0, 
                    batch_size=512, 
                    use_MID_choices = [False, True],
-                   use_CPr_choices = [False, True], 
+                   use_OCr_choices = [False, True], 
                    dropout_choices = [0.2], 
                    tf_layers_choices = [8], 
                    tf_head_choices = [16], 
                    tf_dim_choices = [64], 
-                   w_loss_choices = [1], 
+                   w_loss_choices = [1], # 'a' in paper
                    notes = '', 
                    save_results_to = 'results_MISFITS', 
                    use_misfits = True, 
@@ -45,7 +45,7 @@ def run_experiment(choose_gpu = 0,
                    fine_tune_vf=False, 
                    use_extra_attention=False, 
                    use_features = ["images"], 
-                   generate_per_outfit=2, 
+                   generate_per_outfit=2, # 'm' in paper
                    limit_items = 19, # uses all items in an outfit. 19 is the max items in polyvore. 
                    use_descriptions = True, 
                    num_workers = 8, 
@@ -168,7 +168,7 @@ def run_experiment(choose_gpu = 0,
                     y_pred = torch.sigmoid(y_pred).cpu()
                     y_pred = np.clip(y_pred, 0, 1)
 
-                elif use_CPr: # and not use_MID:
+                elif use_OCr: # and not use_MID:
                     y_pred = torch.sigmoid(y_pred[0]).cpu()
                     y_pred = np.clip(y_pred, 0, 1)
 
@@ -177,7 +177,7 @@ def run_experiment(choose_gpu = 0,
                     y_pred = np.clip(y_pred, 0, 1)
                     
                 else:
-                    raise Exception('One of use_MID, use_CPr, CPb training should be True')
+                    raise Exception('One of use_MID, use_OCr, CPb training should be True')
 
                 y_pred_list.extend(y_pred.numpy())
                 y_true_list.extend(labels.cpu().numpy())
@@ -186,7 +186,7 @@ def run_experiment(choose_gpu = 0,
         y_pred_list = [a.squeeze() for a in y_pred_list]
         y_pred_list = np.array(y_pred_list)
 
-        if use_MID and not use_CPr:
+        if use_MID and not use_OCr:
             items_per_outfit = y_pred_list.shape[1]
             y_pred_list = np.sum(1 - y_pred_list, axis=1) / items_per_outfit
 
@@ -236,7 +236,7 @@ def run_experiment(choose_gpu = 0,
                     y_pred_mid_l.extend(y_pred_mid)
                     y_true_mid.extend(labels_mid.cpu().numpy())
 
-                if use_CPr:
+                if use_OCr:
                     y_pred_reg = predictions[0].cpu()
                     y_pred_reg_l.extend(y_pred_reg.numpy())
                     y_true_reg.extend(labels_reg.cpu().numpy())
@@ -244,7 +244,7 @@ def run_experiment(choose_gpu = 0,
         mae, mse, hamming_loss = 1.0, 1.0, 1.0
         accuracy, exact_match = 0.0, 0.0
 
-        if use_CPr:
+        if use_OCr:
             y_true_reg = np.array([a.squeeze() for a in y_true_reg])
             y_pred_reg_l = [a.squeeze() for a in y_pred_reg_l]
             y_pred_reg_l = np.array(y_pred_reg_l)
@@ -380,7 +380,7 @@ def run_experiment(choose_gpu = 0,
             dropout=0.1,
             limit_items=19,
             use_misfits=False,
-            use_CPr=False,
+            use_OCr=False,
             use_MID=False,
             fine_tune_vf=False,
             choose_cv_model=None,
@@ -392,7 +392,7 @@ def run_experiment(choose_gpu = 0,
 
             self.use_misfits = use_misfits
             self.emb_dim = emb_dim
-            self.use_CPr = use_CPr
+            self.use_OCr = use_OCr
             self.use_MID = use_MID
             self.fine_tune_vf = fine_tune_vf
             self.choose_cv_model = choose_cv_model
@@ -431,7 +431,7 @@ def run_experiment(choose_gpu = 0,
 
             self.fcl = nn.Linear(self.emb_dim, self.emb_dim // 2)
 
-            if not use_misfits or self.use_CPr:
+            if not use_misfits or self.use_OCr:
                 self.output_score = nn.Linear(self.emb_dim // 2, 1)
 
             if self.use_misfits and use_MID:
@@ -463,7 +463,7 @@ def run_experiment(choose_gpu = 0,
             else:
                 x = x.mean(1)
 
-            if not use_misfits or self.use_CPr:
+            if not use_misfits or self.use_OCr:
                 x1 = self.layer_norm(x1)
                 x1 = self.dropout(x1)     
                 x1 = self.fcl(x1)
@@ -486,7 +486,7 @@ def run_experiment(choose_gpu = 0,
 
                 y2 = torch.stack(y2, dim=1).squeeze()
 
-                if not self.use_CPr:
+                if not self.use_OCr:
                     return None, y2
 
             return y1, y2
@@ -628,15 +628,15 @@ def run_experiment(choose_gpu = 0,
     
     for use_MID in use_MID_choices:
 
-        for use_CPr in use_CPr_choices:
+        for use_OCr in use_OCr_choices:
 
-            if use_misfits and (not use_CPr and not use_MID):
+            if use_misfits and (not use_OCr and not use_MID):
                 print("SKIP EXPERIMENT")
                 continue
 
             w_loss_choices_run = w_loss_choices
             
-            if use_misfits and (not use_CPr or not use_MID):
+            if use_misfits and (not use_OCr or not use_MID):
                 w_loss_choices_run   = [1]  
                 
             for dropout in dropout_choices:
@@ -666,7 +666,7 @@ def run_experiment(choose_gpu = 0,
                                     "EXPERIMENT #:",
                                     count_experiment,
                                     "use CPr",
-                                    use_CPr,
+                                    use_OCr,
                                     "use MID",
                                     use_MID,
                                     "tf layers:",
@@ -691,7 +691,7 @@ def run_experiment(choose_gpu = 0,
                                     activation="gelu",
                                     dropout=dropout,
                                     limit_items=limit_items,
-                                    use_CPr=use_CPr,
+                                    use_OCr=use_OCr,
                                     use_MID=use_MID,
                                     use_misfits=use_misfits,
                                     fine_tune_vf=fine_tune_vf,
@@ -733,7 +733,7 @@ def run_experiment(choose_gpu = 0,
                                     else "checkpoints_pt/misfit_" 
                                     + choose_image_model 
                                     + "_" 
-                                    + ('use_CPr' if use_CPr else '') 
+                                    + ('use_OCr' if use_OCr else '') 
                                     + "_" 
                                     + ('use_MID' if use_MID else '')
                                     + "_" 
@@ -797,7 +797,7 @@ def run_experiment(choose_gpu = 0,
 
                                         if use_misfits:
 
-                                            if use_CPr:
+                                            if use_OCr:
                                                 loss_reg = criterion_regression(
                                                     outputs[0], labels_regression.unsqueeze(1)
                                                 )
@@ -834,14 +834,14 @@ def run_experiment(choose_gpu = 0,
                                                     )
                                                 )
 
-                                            if use_CPr and use_MID:
+                                            if use_OCr and use_MID:
                                                 
                                                 loss = loss_reg.float() + loss_mid.float() * weight_loss 
                                                 
                                                 running_loss_mid += loss_mid
                                                 running_loss_reg += loss_reg
 
-                                            elif use_CPr:
+                                            elif use_OCr:
                                                 loss = loss_reg.float()
                                                 running_loss_reg += loss_reg
 
@@ -872,9 +872,9 @@ def run_experiment(choose_gpu = 0,
                                                                                     
                                         history.append(cp_result)
                                         
-                                        if use_CPr and use_MID:
+                                        if use_OCr and use_MID:
                                             metrics_list = ["MAE", "exact_match"] # accuracy
-                                        elif use_CPr:
+                                        elif use_OCr:
                                             metrics_list = ["MAE"]
                                         elif use_MID:
                                             metrics_list = ["exact_match"] # accuracy
@@ -955,7 +955,7 @@ def run_experiment(choose_gpu = 0,
                                 result["polyvore_version"] = polyvore_version
                                 result["limit_items"] = limit_items
                                 result["use_MID"] = use_MID
-                                result["use_CPr"] = use_CPr
+                                result["use_OCr"] = use_OCr
                                 result["generate_items"] = generate_per_outfit
                                 result["CP_AUC"] = cp_result["AUC"]
 
