@@ -28,13 +28,13 @@ for m in [2, 4]:
                 "tf_efficientnetv2_b3",
             ]:
 
-                w_loss_choices = [0.2, 0.5, 1, 2]
+                a = [0.2, 0.5, 1, 2]
                 run_experiment(
                     choose_gpu=0,
                     data_path=data_path,
                     use_MID_choices=[True, False],
                     use_OCr_choices=[True, False],
-                    w_loss_choices=w_loss_choices,
+                    w_loss_choices=a,
                     save_results_to="results_MISFITS",
                     use_misfits=True,
                     pretraining_method=pretraining_method,
@@ -88,13 +88,13 @@ for m in [2, 4]:
                 "tf_efficientnetv2_b3",
             ]:
 
-                w_loss_choices = [0.2, 1]
+                a = [0.2, 1]
                 run_experiment(
                     choose_gpu=0,
                     data_path=data_path,
                     use_MID_choices=[True],
                     use_OCr_choices=[True],
-                    w_loss_choices=w_loss_choices,
+                    w_loss_choices=a,
                     save_results_to="results_MISFITS",
                     use_misfits=True,
                     pretraining_method=pretraining_method,
@@ -116,13 +116,13 @@ for m in [2, 4]:
                 # FLIP's text encoder is not fine-tuned during pre-training.
                 # Therefore there is no difference between using text features from FLIP trained with resnet18 or any other CV model.
 
-                w_loss_choices = [0.2, 1]
+                a = [0.2, 1]
                 run_experiment(
                     choose_gpu=0,
                     data_path=data_path,
                     use_MID_choices=[True],
                     use_OCr_choices=[True],
-                    w_loss_choices=w_loss_choices,
+                    w_loss_choices=a,
                     save_results_to="results_MISFITS",
                     use_misfits=True,
                     pretraining_method=pretraining_method,
