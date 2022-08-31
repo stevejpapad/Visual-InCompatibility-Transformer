@@ -7,5 +7,5 @@ Repository for the "VICTOR: Visual Incompatibility Detection with Transformers a
 ## Usage
 - The Polyvore dataset can be downloaded from https://github.com/mvasil/fashion-compatibility. 
 - Define `data_path` in main.py as the directory that you selected to store the Polyvore dataset.
-- Create a python (> 3.8) environment (Venv or Anaconda) and install the `requirements.txt`. Moreover, you should follow the instruction provided in https://github.com/openai/CLIP to install CLIP.
+- Create a python (> 3.8) environment (Venv or Anaconda) and install the `requirements.txt`. Moreover, you should follow the instructions provided https://github.com/openai/CLIP to install CLIP.
 - Run `python main.py` to first train the four FLIP computer vision models, extract the visual and textual features and then run the ablation and comparative experiments found in the paper. 
