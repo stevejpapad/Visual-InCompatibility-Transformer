@@ -21,64 +21,77 @@ from POLYVORE import fetch_features, fetch_polyvore
 from torchvision import models, transforms
 import gc
 
-def run_experiment(choose_gpu = 0, 
-                   data_path = "data_benchmark/polyvore/polyvore_outfits/", 
-                   memory_fraction=1.0, 
-                   batch_size=512, 
-                   use_MID_choices = [False, True],
-                   use_OCr_choices = [False, True], 
-                   dropout_choices = [0.2], 
-                   tf_layers_choices = [8], 
-                   tf_head_choices = [16], 
-                   tf_dim_choices = [64], 
-                   w_loss_choices = [1], # 'a' in paper
-                   notes = '', 
-                   save_results_to = 'results_MISFITS', 
-                   use_misfits = True, 
-                   use_cls_token = True, 
-                   pretraining_method = "FLIP", 
-                   polyvore_version="nondisjoint", 
-                   choose_image_model="resnet18", 
-                   FLIP_emb_size=512, 
-                   FLIP_learning_rate=1e-4, 
-                   choose_text_model = "CLIP_Transformer", 
-                   fine_tune_vf=False, 
-                   use_extra_attention=False, 
-                   use_features = ["images"], 
-                   generate_per_outfit=2, # 'm' in paper
-                   limit_items = 19, # uses all items in an outfit. 19 is the max items in polyvore. 
-                   use_descriptions = True, 
-                   num_workers = 8, 
-                   early_stop_epochs = 10, 
-                   EPOCHS = 30, 
-                   LEARNING_RATE = 1e-4,
-                   save_results = True):
-    
+
+def run_experiment(
+    choose_gpu=0,
+    data_path="data_benchmark/polyvore/polyvore_outfits/",
+    memory_fraction=1.0,
+    batch_size=512,
+    use_MID_choices=[False, True],
+    use_OCr_choices=[False, True],
+    dropout_choices=[0.2],
+    tf_layers_choices=[8],
+    tf_head_choices=[16],
+    tf_dim_choices=[64],
+    w_loss_choices=[1],  # 'a' in paper
+    notes="",
+    save_results_to="results_MISFITS",
+    use_misfits=True,
+    use_cls_token=True,
+    pretraining_method="FLIP",
+    polyvore_version="nondisjoint",
+    choose_image_model="resnet18",
+    FLIP_emb_size=512,
+    FLIP_learning_rate=1e-4,
+    choose_text_model="CLIP_Transformer",
+    fine_tune_vf=False,
+    use_extra_attention=False,
+    use_features=["images"],
+    generate_per_outfit=2,  # 'm' in paper
+    limit_items=19,  # uses all items in an outfit. 19 is the max items in polyvore.
+    use_descriptions=True,
+    num_workers=8,
+    early_stop_epochs=10,
+    EPOCHS=30,
+    LEARNING_RATE=1e-4,
+    save_results=True,
+):
+
     torch.manual_seed(0)
     random.seed(0)
     np.random.seed(0)
-    
+
     gc.collect()
     generate_per_outfit = generate_per_outfit if use_misfits else 0
 
     batch_size = batch_size if not fine_tune_vf else 32
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(choose_gpu)
-        
+
     torch.cuda.set_per_process_memory_fraction(memory_fraction, device=0)
-    
+
     # extracting, saving and fetching the visual and text features
-    if not os.path.isfile(data_path + 'features/' + choose_image_model + '_' + pretraining_method + '_vf.npy'):
-        
+    if not os.path.isfile(
+        data_path
+        + "features/"
+        + choose_image_model
+        + "_"
+        + pretraining_method
+        + "_vf.npy"
+    ):
+
         from FLIP import extract_visual_features
-        extract_visual_features(data_path, 
-                                choose_image_model, 
-                                choose_text_model,
-                                pretraining_method, 
-                                polyvore_version='nondisjoint', # we use the nondisjoint dataset for feature extraction because it contains all items. But use the disjoint for training FLIP so as to avoid overlaps in training and validation
-                                FLIP_learning_rate=FLIP_learning_rate,
-                                choose_gpu=choose_gpu)  
-    
+
+        extract_visual_features(
+            data_path,
+            choose_image_model,
+            choose_text_model,
+            pretraining_method,
+            polyvore_version="nondisjoint",  # we use the nondisjoint dataset for feature extraction because it contains all items. But use the disjoint for training FLIP so as to avoid overlaps in training and validation
+            FLIP_learning_rate=FLIP_learning_rate,
+            choose_gpu=choose_gpu,
+        )
+
     vf_df, tf_df = fetch_features(data_path, choose_image_model, pretraining_method)
 
     # creating, saving and fetching the polyvore dataset
@@ -88,9 +101,9 @@ def run_experiment(choose_gpu = 0,
         generate_per_outfit=generate_per_outfit,
         limit_items=limit_items,
         use_descriptions=use_descriptions,
-        polyvore_version=polyvore_version
+        polyvore_version=polyvore_version,
     )
-    
+
     # used for evaluating OCb for models trained as OCr or MID or both
     if use_misfits:
         original_test_df = test_df[test_df.altered == False].reset_index(drop=True)
@@ -99,7 +112,7 @@ def run_experiment(choose_gpu = 0,
         vf_shape = vf_df.shape[0]
         tf_shape = tf_df.shape[0]
         mm_shape = vf_shape + tf_shape
-    
+
     # helper and evaluation functions
     def save_results_csv(output_folder_, output_file_, model_performance_):
         print("Save Results ", end=" ... ")
@@ -121,7 +134,6 @@ def run_experiment(choose_gpu = 0,
             )
         print("Done\n")
 
-
     def binary_acc(y_pred, y_test):
         y_pred_tag = torch.round(torch.sigmoid(y_pred))
 
@@ -130,7 +142,6 @@ def run_experiment(choose_gpu = 0,
         acc = torch.round(acc * 100)
 
         return acc
-
 
     def evaluate_cp(input_dataloader):
         y_pred_list = []
@@ -142,11 +153,10 @@ def run_experiment(choose_gpu = 0,
 
             for i, data in enumerate(input_dataloader, 0):
 
-
                 if use_misfits:
                     (
                         inputs,
-                        labels, #labels_regression,
+                        labels,  # labels_regression,
                         labels_mid,
                         pad_positions,
                     ) = (
@@ -168,16 +178,18 @@ def run_experiment(choose_gpu = 0,
                     y_pred = torch.sigmoid(y_pred).cpu()
                     y_pred = np.clip(y_pred, 0, 1)
 
-                elif use_OCr: # and not use_MID:
+                elif use_OCr:  # and not use_MID:
                     y_pred = torch.sigmoid(y_pred[0]).cpu()
                     y_pred = np.clip(y_pred, 0, 1)
 
                 elif use_MID:
                     y_pred = torch.sigmoid(y_pred[1]).cpu()
                     y_pred = np.clip(y_pred, 0, 1)
-                    
+
                 else:
-                    raise Exception('One of use_MID, use_OCr, CPb training should be True')
+                    raise Exception(
+                        "One of use_MID, use_OCr, CPb training should be True"
+                    )
 
                 y_pred_list.extend(y_pred.numpy())
                 y_true_list.extend(labels.cpu().numpy())
@@ -203,7 +215,6 @@ def run_experiment(choose_gpu = 0,
         )
         return {"AUC": round(metrics.roc_auc_score(y_true_list, y_pred_list), 4)}
 
-
     def evaluate_CP_MID(input_dataloader):
         y_pred_reg_l, y_true_reg = [], []
         y_pred_mid_l, y_true_mid = [], []
@@ -215,12 +226,7 @@ def run_experiment(choose_gpu = 0,
 
             for i, data in enumerate(input_dataloader, 0):
 
-                (
-                    inputs,
-                    labels_reg,
-                    labels_mid,
-                    pad_positions,
-                ) = (
+                (inputs, labels_reg, labels_mid, pad_positions,) = (
                     data[0].to(device, non_blocking=True),
                     data[1][0].to(device, non_blocking=True),
                     data[1][1].to(device, non_blocking=True),
@@ -257,11 +263,11 @@ def run_experiment(choose_gpu = 0,
 
             y_pred_mid_l = np.stack(y_pred_mid_l)
             y_true_mid = np.stack(y_true_mid)
-            pad_list = np.stack(pad_list)       
+            pad_list = np.stack(pad_list)
 
             count_non_pad = 0
 
-            for (i) in tqdm(range(y_true_mid.shape[0]), total=y_true_mid.shape[0]):
+            for i in tqdm(range(y_true_mid.shape[0]), total=y_true_mid.shape[0]):
 
                 pad0 = int(pad_list[i])
                 y_pred = y_pred_mid_l[i][pad0:]
@@ -274,11 +280,11 @@ def run_experiment(choose_gpu = 0,
                     keep_exact_matches.append(i)
 
                 count_non_pad += y_true.shape[0]
-                accuracy += np.sum(truth_values) 
+                accuracy += np.sum(truth_values)
 
             accuracy = accuracy / count_non_pad
             exact_match = exact_match / y_true_mid.shape[0]
- 
+
         print(
             "MAE:",
             round(mae, 4),
@@ -324,7 +330,6 @@ def run_experiment(choose_gpu = 0,
 
         return np.argsort(swV)[::-1]
 
-
     def choose_best_model(input_df, metrics=["CP_AUC"]):
 
         X0 = input_df.copy()
@@ -345,7 +350,6 @@ def run_experiment(choose_gpu = 0,
         best_results = topsis(X_np)
         top_K_results = best_results[:1]
         return X0.iloc[top_K_results]
-
 
     def custom_bce_ignore_pads(x, y, pad):
 
@@ -385,7 +389,7 @@ def run_experiment(choose_gpu = 0,
             fine_tune_vf=False,
             choose_cv_model=None,
             use_cls_token=False,
-            use_extra_attention=False
+            use_extra_attention=False,
         ):
 
             super().__init__()
@@ -402,7 +406,13 @@ def run_experiment(choose_gpu = 0,
             if self.fine_tune_vf:
 
                 self.cv_model = torch.nn.Sequential(
-                    *(list(timm.create_model(self.choose_cv_model, pretrained=True).children())[:-1])
+                    *(
+                        list(
+                            timm.create_model(
+                                self.choose_cv_model, pretrained=True
+                            ).children()
+                        )[:-1]
+                    )
                 )
                 self.img_shape = cv_models_params[self.choose_cv_model]["img_shape"]
 
@@ -427,7 +437,9 @@ def run_experiment(choose_gpu = 0,
             self.limit_items = limit_items
 
             if self.use_cls_token:
-                self.class_token = nn.Parameter(nn.init.zeros_(torch.empty(1, 1, self.emb_dim)), requires_grad=True) 
+                self.class_token = nn.Parameter(
+                    nn.init.zeros_(torch.empty(1, 1, self.emb_dim)), requires_grad=True
+                )
 
             self.fcl = nn.Linear(self.emb_dim, self.emb_dim // 2)
 
@@ -435,8 +447,8 @@ def run_experiment(choose_gpu = 0,
                 self.output_score = nn.Linear(self.emb_dim // 2, 1)
 
             if self.use_misfits and use_MID:
-                self.output_mid_list = nn.ModuleList() 
-                self.layer_norms_mid = nn.ModuleList() 
+                self.output_mid_list = nn.ModuleList()
+                self.layer_norms_mid = nn.ModuleList()
 
                 for i in range(0, self.limit_items):
                     self.layer_norms_mid.append(nn.LayerNorm(self.emb_dim).to(device))
@@ -452,7 +464,9 @@ def run_experiment(choose_gpu = 0,
                 x = x.reshape(b_size, self.limit_items, -1)
 
             if self.use_cls_token:
-                cls_token = torch.broadcast_to(self.class_token, (b_size, 1, self.emb_dim))                    
+                cls_token = torch.broadcast_to(
+                    self.class_token, (b_size, 1, self.emb_dim)
+                )
                 x = torch.cat([cls_token, x], axis=1)
 
             x = self.transformer(x)
@@ -465,14 +479,14 @@ def run_experiment(choose_gpu = 0,
 
             if not use_misfits or self.use_OCr:
                 x1 = self.layer_norm(x1)
-                x1 = self.dropout(x1)     
+                x1 = self.dropout(x1)
                 x1 = self.fcl(x1)
                 x1 = self.gelu(x1)
                 x1 = self.dropout(x1)
                 y1 = self.output_score(x1)
 
             if self.use_MID:
-                
+
                 y2 = []
 
                 for i in range(self.limit_items):
@@ -544,7 +558,9 @@ def run_experiment(choose_gpu = 0,
 
             if "texts" in use_features:
                 current_tf = tf_df[current_items].transpose().values
-                pad_zeros = np.zeros((self.limit_items - current_items.shape[0], tf_shape))
+                pad_zeros = np.zeros(
+                    (self.limit_items - current_items.shape[0], tf_shape)
+                )
                 x_tf = np.vstack([pad_zeros, current_tf]).astype("float32")
 
                 if "images" in use_features and not fine_tune_vf:
@@ -554,13 +570,13 @@ def run_experiment(choose_gpu = 0,
                     pass
                 else:
                     x = x_tf
-             
+
             y = current["target"].astype("float32")
-            
+
             if self.use_misfits:
-                y2 = current["MID_target"].astype("float32")                
+                y2 = current["MID_target"].astype("float32")
                 return x, (y, y2), pad0
-            
+
             return x, y, pad0
 
     # Data Generators
@@ -591,18 +607,28 @@ def run_experiment(choose_gpu = 0,
         fine_tune_vf=fine_tune_vf,
     )
 
-    train_dataloader = DataLoader(train_dg, 
-                                  batch_size=batch_size, 
-                                  shuffle=True, 
-                                  num_workers=num_workers, 
-                                  pin_memory=True)
+    train_dataloader = DataLoader(
+        train_dg,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
 
-    valid_dataloader = DataLoader(valid_dg, batch_size=batch_size, shuffle=False, 
-                                  num_workers=num_workers, 
-                                  pin_memory=True)
-    test_dataloader = DataLoader(test_dg, batch_size=batch_size, shuffle=False, 
-                                 num_workers=num_workers, 
-                                 pin_memory=True)
+    valid_dataloader = DataLoader(
+        valid_dg,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
+    test_dataloader = DataLoader(
+        test_dg,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=True,
+    )
 
     if use_misfits:
         og_test_dg = DatasetIterator(
@@ -613,11 +639,13 @@ def run_experiment(choose_gpu = 0,
             fine_tune_vf=fine_tune_vf,
         )
 
-        og_test_dataloader = DataLoader(og_test_dg, 
-                                        batch_size=batch_size, 
-                                        shuffle=False,
-                                        num_workers=num_workers, 
-                                        pin_memory=True)
+        og_test_dataloader = DataLoader(
+            og_test_dg,
+            batch_size=batch_size,
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=True,
+        )
 
     count_experiment = 0
 
@@ -625,7 +653,7 @@ def run_experiment(choose_gpu = 0,
     print(device)
 
     # Training
-    
+
     for use_MID in use_MID_choices:
 
         for use_OCr in use_OCr_choices:
@@ -635,24 +663,28 @@ def run_experiment(choose_gpu = 0,
                 continue
 
             w_loss_choices_run = w_loss_choices
-            
+
             if use_misfits and (not use_OCr or not use_MID):
-                w_loss_choices_run   = [1]  
-                
+                w_loss_choices_run = [1]
+
             for dropout in dropout_choices:
-                for tf_layers in tf_layers_choices:  
-                    for tf_head in tf_head_choices:  
-                        for tf_dim in tf_dim_choices:  
+                for tf_layers in tf_layers_choices:
+                    for tf_head in tf_head_choices:
+                        for tf_dim in tf_dim_choices:
                             for weight_loss in w_loss_choices_run:
-                                             
+
                                 if use_features == ["images", "texts"]:
                                     emb_size = mm_shape
-                                    
+
                                     if fine_tune_vf:
-                                        raise Exception('Cannot fine tune the image encoder while using texts. Not implemented!')
+                                        raise Exception(
+                                            "Cannot fine tune the image encoder while using texts. Not implemented!"
+                                        )
 
                                 elif "images" in use_features and fine_tune_vf:
-                                    emb_size = cv_models_params[choose_image_model]["emb_size"]  
+                                    emb_size = cv_models_params[choose_image_model][
+                                        "emb_size"
+                                    ]
 
                                 elif "images" in use_features:
                                     emb_size = vf_shape
@@ -676,13 +708,13 @@ def run_experiment(choose_gpu = 0,
                                     "weight_loss",
                                     weight_loss,
                                     "CV_model",
-                                    choose_image_model
+                                    choose_image_model,
                                 )
-                                
+
                                 # Define model
-  
+
                                 torch.cuda.empty_cache()
-        
+
                                 model = VICTOR(
                                     emb_dim=emb_size,
                                     tf_layers=tf_layers,
@@ -697,7 +729,7 @@ def run_experiment(choose_gpu = 0,
                                     fine_tune_vf=fine_tune_vf,
                                     choose_cv_model=choose_image_model,
                                     use_cls_token=use_cls_token,
-                                    use_extra_attention=use_extra_attention
+                                    use_extra_attention=use_extra_attention,
                                 )
 
                                 model.to(device)
@@ -709,7 +741,9 @@ def run_experiment(choose_gpu = 0,
                                 else:
                                     criterion = nn.BCEWithLogitsLoss()
 
-                                optimizer = optim.Adam(model.parameters(), lr=LEARNING_RATE)
+                                optimizer = optim.Adam(
+                                    model.parameters(), lr=LEARNING_RATE
+                                )
 
                                 scheduler = optim.lr_scheduler.StepLR(
                                     optimizer, step_size=10, gamma=0.1, verbose=True
@@ -718,9 +752,9 @@ def run_experiment(choose_gpu = 0,
                                 batches_per_epoch = train_dg.__len__() // batch_size
 
                                 PATH = (
-                                    "checkpoints_pt/model" 
-                                    + choose_image_model 
-                                    + "_" 
+                                    "checkpoints_pt/model"
+                                    + choose_image_model
+                                    + "_"
                                     + str(tf_layers)
                                     + "_"
                                     + str(tf_head)
@@ -730,13 +764,13 @@ def run_experiment(choose_gpu = 0,
                                     + str(limit_items)
                                     + ".pt"
                                     if not use_misfits
-                                    else "checkpoints_pt/misfit_" 
-                                    + choose_image_model 
-                                    + "_" 
-                                    + ('use_OCr' if use_OCr else '') 
-                                    + "_" 
-                                    + ('use_MID' if use_MID else '')
-                                    + "_" 
+                                    else "checkpoints_pt/misfit_"
+                                    + choose_image_model
+                                    + "_"
+                                    + ("use_OCr" if use_OCr else "")
+                                    + "_"
+                                    + ("use_MID" if use_MID else "")
+                                    + "_"
                                     + str(tf_layers)
                                     + "_"
                                     + str(tf_head)
@@ -781,8 +815,12 @@ def run_experiment(choose_gpu = 0,
                                                 pad_positions,
                                             ) = (
                                                 data[0].to(device, non_blocking=True),
-                                                data[1][0].to(device, non_blocking=True),
-                                                data[1][1].to(device, non_blocking=True),
+                                                data[1][0].to(
+                                                    device, non_blocking=True
+                                                ),
+                                                data[1][1].to(
+                                                    device, non_blocking=True
+                                                ),
                                                 data[2].to(device, non_blocking=True),
                                             )
                                         else:
@@ -799,7 +837,8 @@ def run_experiment(choose_gpu = 0,
 
                                             if use_OCr:
                                                 loss_reg = criterion_regression(
-                                                    outputs[0], labels_regression.unsqueeze(1)
+                                                    outputs[0],
+                                                    labels_regression.unsqueeze(1),
                                                 )
                                                 reg_outputs = (
                                                     torch.clip(outputs[0], 0, 1)
@@ -817,7 +856,9 @@ def run_experiment(choose_gpu = 0,
 
                                             if use_MID:
                                                 loss_mid = criterion_mid(
-                                                    outputs[1], labels_mid, pad_positions
+                                                    outputs[1],
+                                                    labels_mid,
+                                                    pad_positions,
                                                 )
                                                 mid_outputs = torch.sigmoid(outputs[1])
                                                 mid_outputs = np.round(
@@ -835,9 +876,12 @@ def run_experiment(choose_gpu = 0,
                                                 )
 
                                             if use_OCr and use_MID:
-                                                
-                                                loss = loss_reg.float() + loss_mid.float() * weight_loss 
-                                                
+
+                                                loss = (
+                                                    loss_reg.float()
+                                                    + loss_mid.float() * weight_loss
+                                                )
+
                                                 running_loss_mid += loss_mid
                                                 running_loss_reg += loss_reg
 
@@ -850,8 +894,12 @@ def run_experiment(choose_gpu = 0,
                                                 running_loss_mid += loss_mid
 
                                         else:
-                                            loss = criterion(outputs, labels.unsqueeze(1))
-                                            acc = binary_acc(outputs, labels.unsqueeze(1))
+                                            loss = criterion(
+                                                outputs, labels.unsqueeze(1)
+                                            )
+                                            acc = binary_acc(
+                                                outputs, labels.unsqueeze(1)
+                                            )
 
                                         loss.backward()
                                         optimizer.step()
@@ -869,15 +917,18 @@ def run_experiment(choose_gpu = 0,
 
                                     if use_misfits:
                                         cp_result = evaluate_CP_MID(valid_dataloader)
-                                                                                    
+
                                         history.append(cp_result)
-                                        
+
                                         if use_OCr and use_MID:
-                                            metrics_list = ["MAE", "exact_match"] # accuracy
+                                            metrics_list = [
+                                                "MAE",
+                                                "exact_match",
+                                            ]  # accuracy
                                         elif use_OCr:
                                             metrics_list = ["MAE"]
                                         elif use_MID:
-                                            metrics_list = ["exact_match"] # accuracy
+                                            metrics_list = ["exact_match"]  # accuracy
 
                                         best_index = choose_best_model(
                                             pd.DataFrame(history), metrics=metrics_list
@@ -897,7 +948,7 @@ def run_experiment(choose_gpu = 0,
                                             has_not_improved_for = 0
                                         else:
                                             has_not_improved_for += 1
-                                            
+
                                     else:
                                         cp_result = evaluate_cp(valid_dataloader)
                                         if epoch == 0 or cp_result["AUC"] > max(
@@ -920,7 +971,7 @@ def run_experiment(choose_gpu = 0,
                                             has_not_improved_for = 0
                                         else:
                                             has_not_improved_for += 1
-                                            
+
                                         history.append(result)
 
                                     print("\n")
@@ -928,14 +979,16 @@ def run_experiment(choose_gpu = 0,
 
                                     if has_not_improved_for >= early_stop_epochs:
                                         break
-                                        
 
-
-                                print("Finished Training. Loading the best model from checkpoints.")
+                                print(
+                                    "Finished Training. Loading the best model from checkpoints."
+                                )
 
                                 checkpoint = torch.load(PATH)
                                 model.load_state_dict(checkpoint["model_state_dict"])
-                                optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+                                optimizer.load_state_dict(
+                                    checkpoint["optimizer_state_dict"]
+                                )
                                 epoch = checkpoint["epoch"]
 
                                 if use_misfits:
@@ -966,26 +1019,30 @@ def run_experiment(choose_gpu = 0,
 
                                 result["MAE"] = MID_result["MAE"] if use_misfits else 1
                                 result["MSE"] = MID_result["MSE"] if use_misfits else 1
-                                result["exact_match"] = MID_result["exact_match"] if use_misfits else 0
-                                result["accuracy"] = MID_result["accuracy"] if use_misfits else 0
+                                result["exact_match"] = (
+                                    MID_result["exact_match"] if use_misfits else 0
+                                )
+                                result["accuracy"] = (
+                                    MID_result["accuracy"] if use_misfits else 0
+                                )
 
                                 print(result)
                                 result["history"] = history
                                 result["use_features"] = use_features
                                 result["fine_tune_vf"] = fine_tune_vf
                                 result["cls_token"] = use_cls_token
-                                result['learning_rate'] = LEARNING_RATE
-                                result['batch_size'] = batch_size
-                                result['checkpoint_path'] = PATH
-                                result['use_extra_attention'] = use_extra_attention
-                                result['weight_loss'] = weight_loss
-                                result['NOTES'] = notes
-                                result['FLIP_emb_size'] = FLIP_emb_size
-                                result['FLIP_learning_rate'] = FLIP_learning_rate                        
+                                result["learning_rate"] = LEARNING_RATE
+                                result["batch_size"] = batch_size
+                                result["checkpoint_path"] = PATH
+                                result["use_extra_attention"] = use_extra_attention
+                                result["weight_loss"] = weight_loss
+                                result["NOTES"] = notes
+                                result["FLIP_emb_size"] = FLIP_emb_size
+                                result["FLIP_learning_rate"] = FLIP_learning_rate
 
                                 if save_results:
-                                    if not os.path.isdir(data_path + 'results'):
-                                        os.mkdir(data_path + 'results')
+                                    if not os.path.isdir(data_path + "results"):
+                                        os.mkdir(data_path + "results")
 
                                     save_results_csv(
                                         "data_benchmark/polyvore/polyvore_outfits/results/",
@@ -994,8 +1051,7 @@ def run_experiment(choose_gpu = 0,
                                     )
                                 del model
                                 gc.collect()
-                                torch.cuda.empty_cache()                                
+                                torch.cuda.empty_cache()
 
-                                print('sleep for 1 minute')
-                                time.sleep(60)                                
-                                
+                                print("sleep for 1 minute")
+                                time.sleep(60)
