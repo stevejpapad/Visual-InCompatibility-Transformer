@@ -17,8 +17,10 @@ import time
 from PIL import Image
 from transformers import AutoTokenizer, AutoModel
 from sentence_transformers import SentenceTransformer, models
-from POLYVORE import fetch_features, fetch_polyvore
+from prepare_polyvore import fetch_features, fetch_polyvore
 from torchvision import models, transforms
+from data_loaders import DatasetIterator_VICTOR
+from models import VICTOR
 import gc
 
 
@@ -373,238 +375,47 @@ def run_experiment(
 
         return torch.stack(t_loss).mean()
 
-    class VICTOR(nn.Module):
-        def __init__(
-            self,
-            emb_dim=64,
-            tf_layers=1,
-            tf_head=2,
-            tf_dim=128,
-            activation="relu",
-            dropout=0.1,
-            limit_items=19,
-            use_misfits=False,
-            use_OCr=False,
-            use_MID=False,
-            fine_tune_vf=False,
-            choose_cv_model=None,
-            use_cls_token=False,
-            use_extra_attention=False,
-        ):
-
-            super().__init__()
-
-            self.use_misfits = use_misfits
-            self.emb_dim = emb_dim
-            self.use_OCr = use_OCr
-            self.use_MID = use_MID
-            self.fine_tune_vf = fine_tune_vf
-            self.choose_cv_model = choose_cv_model
-            self.use_cls_token = use_cls_token
-            self.use_extra_attention = use_extra_attention
-
-            if self.fine_tune_vf:
-
-                self.cv_model = torch.nn.Sequential(
-                    *(
-                        list(
-                            timm.create_model(
-                                self.choose_cv_model, pretrained=True
-                            ).children()
-                        )[:-1]
-                    )
-                )
-                self.img_shape = cv_models_params[self.choose_cv_model]["img_shape"]
-
-            self.transformer = nn.TransformerEncoder(
-                nn.TransformerEncoderLayer(
-                    d_model=self.emb_dim,
-                    nhead=tf_head,
-                    dim_feedforward=tf_dim,
-                    dropout=dropout,
-                    activation=activation,
-                    batch_first=True,
-                    norm_first=True,
-                ),
-                num_layers=tf_layers,
-            )
-
-            self.dropout = nn.Dropout(p=dropout)
-            self.layer_norm = torch.nn.LayerNorm(self.emb_dim)
-            self.relu = nn.ReLU()
-            self.gelu = nn.GELU()
-            self.sigmoid = nn.Sigmoid()
-            self.limit_items = limit_items
-
-            if self.use_cls_token:
-                self.class_token = nn.Parameter(
-                    nn.init.zeros_(torch.empty(1, 1, self.emb_dim)), requires_grad=True
-                )
-
-            self.fcl = nn.Linear(self.emb_dim, self.emb_dim // 2)
-
-            if not use_misfits or self.use_OCr:
-                self.output_score = nn.Linear(self.emb_dim // 2, 1)
-
-            if self.use_misfits and use_MID:
-                self.output_mid_list = nn.ModuleList()
-                self.layer_norms_mid = nn.ModuleList()
-
-                for i in range(0, self.limit_items):
-                    self.layer_norms_mid.append(nn.LayerNorm(self.emb_dim).to(device))
-                    self.output_mid_list.append(nn.Linear(self.emb_dim, 1).to(device))
-
-        def forward(self, x, pad):
-            b_size = x.shape[0]
-
-            if self.fine_tune_vf:
-
-                x = x.reshape(-1, 3, self.img_shape, self.img_shape)
-                x = self.cv_model(x)
-                x = x.reshape(b_size, self.limit_items, -1)
-
-            if self.use_cls_token:
-                cls_token = torch.broadcast_to(
-                    self.class_token, (b_size, 1, self.emb_dim)
-                )
-                x = torch.cat([cls_token, x], axis=1)
-
-            x = self.transformer(x)
-
-            if self.use_cls_token:
-                x1 = x[:, 0, :]
-                x2 = x[:, 1:, :]
-            else:
-                x = x.mean(1)
-
-            if not use_misfits or self.use_OCr:
-                x1 = self.layer_norm(x1)
-                x1 = self.dropout(x1)
-                x1 = self.fcl(x1)
-                x1 = self.gelu(x1)
-                x1 = self.dropout(x1)
-                y1 = self.output_score(x1)
-
-            if self.use_MID:
-
-                y2 = []
-
-                for i in range(self.limit_items):
-
-                    x2_current = x2[:, i, :]
-                    x2_current = self.layer_norms_mid[i](x2_current)
-                    x2_current = self.dropout(x2_current)
-                    x2_current = self.gelu(x2_current)
-
-                    y2.append(self.output_mid_list[i](x2_current))
-
-                y2 = torch.stack(y2, dim=1).squeeze()
-
-                if not self.use_OCr:
-                    return None, y2
-
-            return y1, y2
-
-    class DatasetIterator(torch.utils.data.Dataset):
-        def __init__(
-            self,
-            input_data,
-            data_path,
-            limit_items=10,
-            use_misfits=False,
-            use_features=["images"],
-            fine_tune_vf=False,
-        ):
-            self.input_data = input_data
-            self.use_misfits = use_misfits
-            self.use_features = use_features
-            self.limit_items = limit_items
-            self.fine_tune_vf = fine_tune_vf
-            self.data_path = data_path
-
-        def __len__(self):
-            return self.input_data.shape[0]
-
-        def __getitem__(self, idx):
-            current = self.input_data.iloc[idx]
-
-            pad0 = current["PAD0_N"].astype("float32")
-            current_items = current.outfit_items
-            current_items = current_items[current_items != "0"]
-
-            if "images" in use_features:
-                if fine_tune_vf:
-
-                    images = []
-                    for item_id in current_items:
-                        image_path = data_path + "images/" + item_id + ".jpg"
-                        img = Image.open(image_path)
-                        img = transform(img)
-                        img = img.reshape(1, 3, img_shape, img_shape)
-                        images.append(img)
-
-                    images = torch.vstack(images)
-                    pad_zeros = np.zeros(
-                        (self.limit_items - images.shape[0], 3, img_shape, img_shape)
-                    )
-                    x = np.vstack([pad_zeros, images]).astype("float32")
-
-                else:
-                    current_vf = vf_df[current_items].transpose().values
-                    pad_zeros = np.zeros(
-                        (self.limit_items - current_items.shape[0], vf_shape)
-                    )
-                    x = np.vstack([pad_zeros, current_vf]).astype("float32")
-
-            if "texts" in use_features:
-                current_tf = tf_df[current_items].transpose().values
-                pad_zeros = np.zeros(
-                    (self.limit_items - current_items.shape[0], tf_shape)
-                )
-                x_tf = np.vstack([pad_zeros, current_tf]).astype("float32")
-
-                if "images" in use_features and not fine_tune_vf:
-                    x = np.concatenate([x, x_tf], axis=1)
-                elif "images" in use_features and fine_tune_vf:
-                    # TO-DO
-                    pass
-                else:
-                    x = x_tf
-
-            y = current["target"].astype("float32")
-
-            if self.use_misfits:
-                y2 = current["MID_target"].astype("float32")
-                return x, (y, y2), pad0
-
-            return x, y, pad0
-
     # Data Generators
-    train_dg = DatasetIterator(
+    train_dg = DatasetIterator_VICTOR(
         train_df,
         data_path=data_path,
         limit_items=limit_items,
         use_features=use_features,
         use_misfits=use_misfits,
         fine_tune_vf=fine_tune_vf,
+        vf_df=vf_df,
+        tf_df=tf_df,
+        vf_shape=vf_shape,
+        tf_shape=vf_shape
+        
     )
 
-    valid_dg = DatasetIterator(
+    valid_dg = DatasetIterator_VICTOR(
         valid_df,
         data_path=data_path,
         limit_items=limit_items,
         use_features=use_features,
         use_misfits=use_misfits,
         fine_tune_vf=fine_tune_vf,
+        vf_df=vf_df,
+        tf_df=tf_df,
+        vf_shape=vf_shape,
+        tf_shape=vf_shape
+        
     )
 
-    test_dg = DatasetIterator(
+    test_dg = DatasetIterator_VICTOR(
         test_df,
         data_path=data_path,
         limit_items=limit_items,
         use_features=use_features,
         use_misfits=use_misfits,
         fine_tune_vf=fine_tune_vf,
+        vf_df=vf_df,
+        tf_df=tf_df,
+        vf_shape=vf_shape,
+        tf_shape=vf_shape
+        
     )
 
     train_dataloader = DataLoader(
@@ -631,12 +442,16 @@ def run_experiment(
     )
 
     if use_misfits:
-        og_test_dg = DatasetIterator(
+        og_test_dg = DatasetIterator_VICTOR(
             original_test_df,
             data_path=data_path,
             use_misfits=use_misfits,
             limit_items=limit_items,
             fine_tune_vf=fine_tune_vf,
+            vf_df=vf_df,
+            tf_df=tf_df,
+            vf_shape=vf_shape,
+            tf_shape=vf_shape
         )
 
         og_test_dataloader = DataLoader(
@@ -730,6 +545,7 @@ def run_experiment(
                                     choose_cv_model=choose_image_model,
                                     use_cls_token=use_cls_token,
                                     use_extra_attention=use_extra_attention,
+                                    device=device
                                 )
 
                                 model.to(device)

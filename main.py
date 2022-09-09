@@ -2,7 +2,7 @@ from FLIP import train_flip
 from VICTOR import run_experiment
 
 # Where the polyvore dataset is stored. This must be defined by the user.
-data_path = "data_benchmark/polyvore/polyvore_outfits/"
+data_path = "data/"
 
 # First we train FLIP with four different computer vision models
 for choose_image_model in [

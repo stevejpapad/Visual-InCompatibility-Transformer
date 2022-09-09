@@ -21,6 +21,9 @@ from PIL import Image
 from torchvision import transforms
 import timm
 
+from models import FLIP
+from data_loaders import DatasetIterator_FLIP
+
 torch.manual_seed(0)
 random.seed(0)
 np.random.seed(0)
@@ -90,154 +93,6 @@ def freeze_model(input_model):
     return input_model
 
 
-class FLIP(nn.Module):
-    def __init__(
-        self,
-        img_models_params,
-        txt_models_params,
-        device,
-        emb_dim=128,
-        choose_image_encoder=None,
-        choose_text_encoder=None,
-        extract_features=False,
-    ):
-
-        super().__init__()
-
-        self.emb_dim = emb_dim
-        self.img_models_params = img_models_params
-        self.txt_models_params = txt_models_params
-
-        self.choose_image_encoder = choose_image_encoder
-        self.choose_text_encoder = choose_text_encoder
-
-        self.extract_features = extract_features
-
-        self.image_encoder = torch.nn.Sequential(
-            *(
-                list(
-                    timm.create_model(
-                        self.choose_image_encoder, pretrained=True
-                    ).children()
-                )[:-1]
-            )
-        )
-
-        for name, param in self.image_encoder.named_parameters():
-            param.requires_grad = True
-
-        if self.choose_text_encoder == "CLIP_Transformer":
-
-            clip_model, _ = clip.load("RN50", device=device, jit=False)
-            for name, param in clip_model.named_parameters():
-                param.requires_grad = False
-
-            self.text_encoder = clip_model.encode_text
-
-        else:
-
-            self.text_encoder = torch.nn.Sequential(
-                *(
-                    list(
-                        freeze_model(
-                            AutoModel.from_pretrained(self.choose_text_encoder)
-                        ).children()
-                    )[:-1]
-                )
-            )
-
-        self.fcl_img = nn.Linear(
-            self.img_models_params[self.choose_image_encoder]["emb_size"], self.emb_dim
-        )
-
-        self.fcl_txt = nn.Linear(
-            self.txt_models_params[self.choose_text_encoder]["emb_size"], self.emb_dim
-        )
-
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-
-    def forward(self, images, texts):
-
-        x_img = self.image_encoder(images)
-
-        if self.choose_image_encoder.startswith(
-            "vit"
-        ) or self.choose_image_encoder.startswith("mixer"):
-            x_img = torch.mean(x_img, axis=1)
-
-        if self.choose_text_encoder == "CLIP_Transformer":
-            x_txt = self.text_encoder(texts).float()
-
-        else:
-            x_txt = self.text_encoder(texts).last_hidden_state
-            x_txt = torch.mean(x_txt, axis=1)
-
-        x_img = self.fcl_img(x_img)
-        x_txt = self.fcl_txt(x_txt)
-
-        if self.extract_features:
-            return x_img, x_txt
-
-        # normalized features
-        x_img = x_img / x_img.norm(dim=1, keepdim=True)
-        x_txt = x_txt / x_txt.norm(dim=1, keepdim=True)
-
-        # cosine similarity as logits
-        logit_scale = self.logit_scale.exp()
-        logits_per_image = logit_scale * x_img @ x_txt.t()
-        logits_per_text = logits_per_image.t()
-
-        return logits_per_image, logits_per_text
-
-
-class DatasetIterator_ImageText(torch.utils.data.Dataset):
-    def __init__(
-        self,
-        input_data,
-        data_path,
-        transform,
-        tokenizer,
-        choose_text_model,
-        return_ids=False,
-    ):
-        self.input_data = input_data
-        self.return_ids = return_ids
-        self.data_path = data_path
-        self.transform = transform
-        self.tokenizer = tokenizer
-        self.choose_text_model = choose_text_model
-
-    def __len__(self):
-        return self.input_data.shape[0]
-
-    def __getitem__(self, idx):
-        current = self.input_data.iloc[idx]
-        item_id = current.item_id
-
-        # IMAGES
-        image_path = self.data_path + "images/" + item_id + ".jpg"
-        img = Image.open(image_path)
-        img = self.transform(img)
-
-        # TEXTS
-        if self.choose_text_model == "CLIP_Transformer":
-            try:
-                txt = torch.squeeze(clip.tokenize(current.text[:77]))
-            except:
-                txt = torch.squeeze(clip.tokenize(""))
-        else:
-            txt = np.array(
-                self.tokenizer(current.text, padding="max_length", truncation=True)[
-                    "input_ids"
-                ]
-            )
-
-        if self.return_ids:
-            return img, txt, item_id
-        else:
-            return img, txt
-
-
 def train_flip(
     choose_image_model,
     EPOCHS=20,
@@ -251,6 +106,7 @@ def train_flip(
     data_path="data_benchmark/polyvore/polyvore_outfits/",
     polyvore_version="disjoint",
     choose_text_model="CLIP_Transformer",
+    results_file="RESULTS_FLIP"
 ):
 
     os.environ["CUDA_VISIBLE_DEVICES"] = str(choose_gpu)
@@ -438,7 +294,7 @@ def train_flip(
             data_path + "misfits/" + "FLIP_" + polyvore_version + "_test.pkl"
         )
 
-    train_dg = DatasetIterator_ImageText(
+    train_dg = DatasetIterator_FLIP(
         train_df,
         data_path=data_path,
         transform=transform,
@@ -446,7 +302,7 @@ def train_flip(
         choose_text_model=choose_text_model,
     )
 
-    valid_dg = DatasetIterator_ImageText(
+    valid_dg = DatasetIterator_FLIP(
         valid_df,
         data_path=data_path,
         transform=transform,
@@ -454,7 +310,7 @@ def train_flip(
         choose_text_model=choose_text_model,
     )
 
-    test_dg = DatasetIterator_ImageText(
+    test_dg = DatasetIterator_FLIP(
         test_df,
         data_path=data_path,
         transform=transform,
@@ -656,7 +512,7 @@ def train_flip(
 
     save_results_csv(
         "data_benchmark/polyvore/polyvore_outfits/results/",
-        "RESULTS_FLIP",
+        results_file,
         result,
     )
 
