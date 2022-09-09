@@ -95,7 +95,7 @@ run_experiment(
 ```
 
 ## Acknowledgements
-This work is partially funded by the Horizon 2020 European project ``eTryOn - virtual try-ons of garments enabling novel human fashion interactions'' under grant agreement no. 951908.
+This work is partially funded by the Horizon 2020 European project "eTryOn - virtual try-ons of garments enabling novel human fashion interactions" under grant agreement no. 951908.
 
 ## Licence
 This project is licensed under the Apache License 2.0 - see the [LICENSE](https://github.com/stevejpapad/Visual-InCompatibility-Transformer/blob/main/LICENSE) file for details
