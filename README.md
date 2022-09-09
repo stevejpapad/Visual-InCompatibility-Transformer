@@ -32,7 +32,7 @@ to first train the four FLIP computer vision models, extract the visual and text
 ## Usage
 - Fetch the polyvore dataset and generate the Polyvore-MISFITs dataset with m=4. 
 ```
-from prepare_polyvore import fetch_features, fetch_polyvore
+from prepare_polyvore import fetch_polyvore
 train_df, valid_df, test_df = fetch_polyvore(
       data_path=data_path,
       use_misfits=True,
@@ -62,7 +62,8 @@ We experiment with four computer vision neural networks: `resnet18`, `tf_efficie
 - Once a FLIP model is trained and saved, visual features can be extracted by:
 ```
 from FLIP import extract_visual_features
-      extract_visual_features(
+
+extract_visual_features(
       data_path,
       choose_image_model,
       choose_text_model,
