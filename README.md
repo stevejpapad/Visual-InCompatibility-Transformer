@@ -31,8 +31,9 @@ to first train the four FLIP computer vision models, extract the visual and text
 
 ## Usage
 - Fetch the polyvore dataset and generate the Polyvore-MISFITs dataset with m=4. 
-```
+```python
 from prepare_polyvore import fetch_polyvore
+
 train_df, valid_df, test_df = fetch_polyvore(
       data_path=data_path,
       use_misfits=True,
@@ -46,21 +47,22 @@ Examples of generated MISFITs:
 ![Screenshot](data/generated_misfits.jpg)
 
 - Fine-tune a computer vision model with fashion-specific contrastive language-image pre-training (FLIP):
-```
+```python
 from FLIP import train_flip
+
 train_flip(
+      data_path=data_path,
       choose_image_model="resnet18", 
       EPOCHS=20, 
       LEARNING_RATE=1e-4, 
       emb_size=512, 
       batch_size=32, 
-      data_path=data_path
 )
 ```
 We experiment with four computer vision neural networks: `resnet18`, `tf_efficientnetv2_b3`, `vit_base_patch32_224` and `mixer_b16_224`.
 
 - Once a FLIP model is trained and saved, visual features can be extracted by:
-```
+```python
 from FLIP import extract_visual_features
 
 extract_visual_features(
@@ -75,7 +77,7 @@ extract_visual_features(
 
 - Training VICTOR[MTL] with multi-modal input on the Polyvore-MISFITs-disjoint dataset with m = 2 (generated items) and a = 0.2 (combining loss weight) and features extracted from FLIP-ResNet18. 
 
-```
+```python
 from VICTOR import run_experiment
 
 run_experiment(
