@@ -44,6 +44,7 @@ train_df, valid_df, test_df = fetch_polyvore(
 )
 ```
 Examples of generated MISFITs:
+
 ![Screenshot](data/generated_misfits.jpg)
 
 - Fine-tune a computer vision model with fashion-specific contrastive language-image pre-training (FLIP):
