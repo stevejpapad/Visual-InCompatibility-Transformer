@@ -559,7 +559,7 @@ def extract_visual_features(
     all_data = pd.concat([train_df, valid_df, test_df])
     all_data = all_data.drop_duplicates("item_id")
 
-    all_data_dg = DatasetIterator_ImageText(
+    all_data_dg = DatasetIterator_FLIP(
         all_data,
         transform=transform,
         tokenizer=tokenizer,
