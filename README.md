@@ -6,6 +6,18 @@ Repository for the "VICTOR: Visual Incompatibility Detection with Transformers a
 
 ![Screenshot](data/VICTOR.jpg)
 
+If you find this work useful, please cite:
+```
+@article{papadopoulos2023victor,
+  title={VICTOR: Visual incompatibility detection with transformers and fashion-specific contrastive pre-training},
+  author={Papadopoulos, Stefanos-Iordanis and Koutlis, Christos and Papadopoulos, Symeon and Kompatsiaris, Ioannis},
+  journal={Journal of Visual Communication and Image Representation},
+  pages={103741},
+  year={2023},
+  publisher={Elsevier}
+}
+```
+
 ## Preparation
 
 - Clone this repo: 
